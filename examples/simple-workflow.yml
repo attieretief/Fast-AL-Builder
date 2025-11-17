@@ -1,0 +1,25 @@
+# Simple example workflow for basic AL builds
+name: Simple AL Build
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Build AL Extension
+        uses: attieretief/Fast-AL-Builder@v1
+        with:
+          mode: ${{ github.event_name == 'pull_request' && 'check' || 'build' }}
+          build-type: 'auto'
+        env:
+          # Optional: Add environment variables for better performance
+          DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+          DOTNET_CLI_TELEMETRY_OPTOUT: true

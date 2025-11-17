@@ -1,0 +1,31 @@
+name: Simple Test
+
+on:
+  workflow_dispatch:
+
+jobs:
+  simple-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: List Files
+        run: |
+          echo "📁 Repository structure:"
+          find . -type f -name "*.sh" -o -name "*.yml" | head -20
+          echo ""
+          echo "🔍 Checking scripts directory:"
+          ls -la scripts/
+          echo ""
+          echo "📋 Test project exists:"
+          ls -la test-al-project/
+          
+      - name: Test Setup Script
+        run: |
+          echo "🧪 Testing setup script permissions:"
+          ls -la scripts/install-al-compiler.sh
+          echo "✅ Making script executable if needed:"
+          chmod +x scripts/install-al-compiler.sh
+          echo "🔧 Testing basic script execution (first few lines):"
+          head -10 scripts/install-al-compiler.sh

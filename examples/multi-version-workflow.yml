@@ -1,0 +1,45 @@
+# Multi-version build workflow for supporting multiple BC versions
+name: Multi-Version AL Build
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  matrix-build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        bc-version: [bc22, bc24, bc25, bccloud]
+        include:
+          - bc-version: bc22
+            app-json-file: bc22_app.json
+          - bc-version: bc24
+            app-json-file: bc24_app.json
+          - bc-version: bc25
+            app-json-file: bc25_app.json
+          - bc-version: bccloud
+            app-json-file: cloud_app.json
+      fail-fast: false
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Build for ${{ matrix.bc-version }}
+        uses: attieretief/Fast-AL-Builder@v1
+        with:
+          mode: ${{ github.event_name == 'pull_request' && 'check' || 'build' }}
+          build-type: ${{ matrix.bc-version }}
+          linc-nuget-registry: ${{ vars.LINC_NUGET_REGISTRY }}
+          linc-nuget-token: ${{ secrets.LINC_NUGET_TOKEN }}
+
+      - name: Upload Artifacts for ${{ matrix.bc-version }}
+        if: github.event_name == 'push'
+        uses: actions/upload-artifact@v4
+        with:
+          name: al-extension-${{ matrix.bc-version }}-${{ github.run_number }}
+          path: "*.app"
+          retention-days: 30

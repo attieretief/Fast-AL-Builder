@@ -1,0 +1,172 @@
+name: 'Fast AL Builder'
+description: 'Build and optionally publish Business Central AL extensions with symbol management and AppSource support'
+author: 'Attie Retief'
+
+inputs:
+  mode:
+    description: 'Build mode: "check" for PR validation or "build" for full build with artifacts'
+    required: true
+    default: 'check'
+  
+  build-type:
+    description: 'Target BC version: bc17, bc18, bc19, bc22, bccloud, or auto-detect from app.json'
+    required: false
+    default: 'auto'
+  
+  working-directory:
+    description: 'Directory containing the AL project (relative to repo root)'
+    required: false
+    default: '.'
+  
+  nuget-feed-url:
+    description: 'Custom NuGet feed URL for AL compiler and symbols'
+    required: false
+    default: 'https://pkgs.dev.azure.com/ms/BCTech/_packaging/bc-compiler/nuget/v3/index.json'
+  
+  linc-nuget-registry:
+    description: 'Linc GitHub NuGet registry URL for dependencies'
+    required: false
+  
+  linc-nuget-token:
+    description: 'Token for Linc NuGet registry access'
+    required: false
+  
+  code-signing-vault-uri:
+    description: 'Azure Key Vault URI for code signing'
+    required: false
+  
+  code-signing-cert-name:
+    description: 'Certificate name in Azure Key Vault'
+    required: false
+  
+  code-signing-app-id:
+    description: 'Azure application ID for Key Vault access'
+    required: false
+  
+  code-signing-app-secret:
+    description: 'Azure application secret for Key Vault access'
+    required: false
+  
+  code-signing-tenant-id:
+    description: 'Azure tenant ID for Key Vault access'
+    required: false
+  
+  appsource-tenant-id:
+    description: 'Azure tenant ID for AppSource publishing'
+    required: false
+  
+  appsource-client-id:
+    description: 'Client ID for AppSource API'
+    required: false
+  
+  appsource-client-secret:
+    description: 'Client secret for AppSource API'
+    required: false
+  
+  force-showmycode-false:
+    description: 'Force showMyCode to false for customer repos'
+    required: false
+    default: 'true'
+
+outputs:
+  build-number:
+    description: 'Generated build number for the compiled app'
+    value: ${{ steps.build.outputs.build-number }}
+  
+  app-file-path:
+    description: 'Path to the compiled .app file'
+    value: ${{ steps.build.outputs.app-file-path }}
+  
+  compilation-success:
+    description: 'Whether compilation was successful'
+    value: ${{ steps.build.outputs.compilation-success }}
+
+runs:
+  using: composite
+  steps:
+    - name: Setup Environment
+      id: setup
+      shell: bash
+      run: |
+        echo "Setting up AL build environment..."
+        echo "mode=${{ inputs.mode }}" >> $GITHUB_OUTPUT
+        echo "build-type=${{ inputs.build-type }}" >> $GITHUB_OUTPUT
+        echo "working-dir=${{ inputs.working-directory }}" >> $GITHUB_OUTPUT
+
+    - name: Install AL Compiler
+      id: install-compiler
+      shell: bash
+      run: |
+        echo "Installing AL Compiler from NuGet..."
+        ${{ github.action_path }}/scripts/install-al-compiler.sh "${{ inputs.nuget-feed-url }}"
+
+    - name: Analyze AL Project
+      id: analyze
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        echo "Analyzing app.json and determining build configuration..."
+        ${{ github.action_path }}/scripts/analyze-project.sh "${{ inputs.build-type }}"
+
+    - name: Download Symbols
+      id: symbols
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        echo "Downloading Microsoft and dependency symbols..."
+        ${{ github.action_path }}/scripts/download-symbols.sh \
+          "${{ steps.analyze.outputs.bc-version }}" \
+          "${{ steps.analyze.outputs.dependencies }}" \
+          "${{ inputs.linc-nuget-registry }}" \
+          "${{ inputs.linc-nuget-token }}"
+
+    - name: Build AL Extension
+      id: build
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        echo "Compiling AL extension..."
+        ${{ github.action_path }}/scripts/build-extension.sh \
+          "${{ inputs.mode }}" \
+          "${{ steps.analyze.outputs.app-info }}" \
+          "${{ steps.analyze.outputs.build-config }}" \
+          "${{ inputs.force-showmycode-false }}"
+
+    - name: Code Sign App File
+      if: inputs.mode == 'build' && steps.build.outputs.compilation-success == 'true'
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        echo "Code signing app file..."
+        ${{ github.action_path }}/scripts/code-sign.sh \
+          "${{ steps.build.outputs.app-file-path }}" \
+          "${{ inputs.code-signing-vault-uri }}" \
+          "${{ inputs.code-signing-cert-name }}" \
+          "${{ inputs.code-signing-app-id }}" \
+          "${{ inputs.code-signing-app-secret }}" \
+          "${{ inputs.code-signing-tenant-id }}"
+
+    - name: Upload Build Artifacts
+      if: inputs.mode == 'build' && steps.build.outputs.compilation-success == 'true'
+      uses: actions/upload-artifact@v4
+      with:
+        name: al-extension-${{ steps.build.outputs.build-number }}
+        path: ${{ steps.build.outputs.app-file-path }}
+        retention-days: 30
+
+    - name: Publish to AppSource
+      if: inputs.mode == 'build' && steps.build.outputs.compilation-success == 'true' && steps.analyze.outputs.is-appsource-app == 'true'
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        echo "Publishing to AppSource..."
+        ${{ github.action_path }}/scripts/publish-appsource.sh \
+          "${{ steps.analyze.outputs.app-info }}" \
+          "${{ steps.build.outputs.app-file-path }}" \
+          "${{ inputs.appsource-tenant-id }}" \
+          "${{ inputs.appsource-client-id }}" \
+          "${{ inputs.appsource-client-secret }}"
+
+branding:
+  icon: 'package'
+  color: 'blue'
