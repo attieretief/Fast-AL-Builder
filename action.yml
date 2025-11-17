@@ -21,7 +21,7 @@ inputs:
   nuget-feed-url:
     description: 'Custom NuGet feed URL for AL compiler and symbols'
     required: false
-    default: 'https://pkgs.dev.azure.com/ms/BCTech/_packaging/bc-compiler/nuget/v3/index.json'
+    default: 'https://api.nuget.org/v3/index.json'
   
   linc-nuget-registry:
     description: 'Linc GitHub NuGet registry URL for dependencies'

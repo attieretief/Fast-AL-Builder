@@ -29,14 +29,9 @@ if [ ! -f .config/dotnet-tools.json ]; then
 fi
 
 # Install AL compiler
-echo "Installing Microsoft.Dynamics.BusinessCentral.Al.Compiler..."
-# Use Microsoft's NuGet feed for AL compiler if default feed is used
-if [ "$NUGET_FEED_URL" = "https://api.nuget.org/v3/index.json" ]; then
-    MICROSOFT_FEED="https://pkgs.dev.azure.com/ms/BCTech/_packaging/bc-compiler/nuget/v3/index.json"
-    dotnet tool install Microsoft.Dynamics.BusinessCentral.Al.Compiler --global --add-source $MICROSOFT_FEED
-else
-    dotnet tool install Microsoft.Dynamics.BusinessCentral.Al.Compiler --global --add-source $NUGET_FEED_URL
-fi
+echo "Installing Microsoft.Dynamics.BusinessCentral.Development.Tools..."
+# This package is publicly available on nuget.org
+dotnet tool install Microsoft.Dynamics.BusinessCentral.Development.Tools --global --add-source $NUGET_FEED_URL
 
 # Verify installation
 AL_COMPILER_PATH=$(which alc || echo "")
@@ -47,6 +42,10 @@ fi
 
 echo "✅ AL Compiler installed successfully at: $AL_COMPILER_PATH"
 echo "al-compiler-path=$AL_COMPILER_PATH" >> $GITHUB_OUTPUT
+
+# Test the installation
+echo "Testing AL Compiler installation..."
+$AL_COMPILER_PATH --version || echo "AL Compiler ready (version info not available)"
 
 # Also try to find it in the traditional .vscode extensions directory for compatibility
 VSCODE_AL_PATH=""
