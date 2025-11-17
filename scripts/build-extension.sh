@@ -12,14 +12,26 @@ FORCE_SHOWMYCODE_FALSE="$4"
 
 echo "🔨 Building AL extension in $MODE mode..."
 
-# Parse app info
-APP_NAME=$(echo "$APP_INFO_JSON" | jq -r '.name')
-CLEAN_APP_NAME=$(echo "$APP_INFO_JSON" | jq -r '.cleanName')
-APP_VERSION=$(echo "$APP_INFO_JSON" | jq -r '.version')
-APP_PLATFORM=$(echo "$APP_INFO_JSON" | jq -r '.platform')
-APP_APPLICATION=$(echo "$APP_INFO_JSON" | jq -r '.application')
-APP_RUNTIME=$(echo "$APP_INFO_JSON" | jq -r '.runtime')
-APP_TARGET=$(echo "$APP_INFO_JSON" | jq -r '.target')
+# Parse app info (handle both simple string and JSON formats)
+if [[ "$APP_INFO_JSON" =~ ^name= ]]; then
+    # Simple format: "name=TestApp,version=1.0.0.0,platform=22.0.0.0"
+    APP_NAME=$(echo "$APP_INFO_JSON" | sed 's/.*name=\([^,]*\).*/\1/')
+    APP_VERSION=$(echo "$APP_INFO_JSON" | sed 's/.*version=\([^,]*\).*/\1/')
+    APP_PLATFORM=$(echo "$APP_INFO_JSON" | sed 's/.*platform=\([^,]*\).*/\1/')
+    CLEAN_APP_NAME=$(echo "$APP_NAME" | sed 's/[^a-zA-Z0-9]//g')
+    APP_APPLICATION="22.0.0.0"  # Default for BC22
+    APP_RUNTIME="10.0"  # Default for BC22
+    APP_TARGET="Cloud"  # Default
+else
+    # JSON format (fallback)
+    APP_NAME=$(echo "$APP_INFO_JSON" | jq -r '.name // "Unknown"')
+    CLEAN_APP_NAME=$(echo "$APP_INFO_JSON" | jq -r '.cleanName // "Unknown"')
+    APP_VERSION=$(echo "$APP_INFO_JSON" | jq -r '.version // "1.0.0.0"')
+    APP_PLATFORM=$(echo "$APP_INFO_JSON" | jq -r '.platform // "22.0.0.0"')
+    APP_APPLICATION=$(echo "$APP_INFO_JSON" | jq -r '.application // "22.0.0.0"')
+    APP_RUNTIME=$(echo "$APP_INFO_JSON" | jq -r '.runtime // "10.0"')
+    APP_TARGET=$(echo "$APP_INFO_JSON" | jq -r '.target // "Cloud"')
+fi
 
 echo "📦 Building: $APP_NAME"
 echo "📊 Original version: $APP_VERSION"
@@ -36,8 +48,10 @@ generate_build_version() {
     # Extract version components
     local platform_major=$(echo "$APP_PLATFORM" | cut -d. -f1)
     local year_minor=$(date +'%y')
-    local days_build=$(( ($(date +%s) - $(date -d "2020-01-01" +%s)) / 86400 ))
-    local minutes_revision=$(( $(date +%s % 86400) / 60 ))
+    local epoch_2020=1577836800  # 2020-01-01 00:00:00 UTC
+    local current_epoch=$(date +%s)
+    local days_build=$(( (current_epoch - epoch_2020) / 86400 ))
+    local minutes_revision=$(( (current_epoch % 86400) / 60 ))
     
     if [ "$MODE" = "build" ] && ([ "$event_name" = "push" ] && ([ "$ref_name" = "main" ] || [ "$ref_name" = "master" ] || [[ "$ref_name" =~ ^bc[0-9]+$ ]])); then
         # Production build
@@ -77,9 +91,9 @@ cleanup_permission_files() {
     echo "🧹 Cleaning up permission files based on runtime..."
     
     local runtime_version=$(echo "$APP_RUNTIME" | cut -d. -f1-2)
-    local runtime_decimal=$(echo "$runtime_version" | tr -d '.')
+    local runtime_decimal=$(echo "$runtime_version" | tr -d '.' | grep '^[0-9]*$' || echo "100")
     
-    if [ "$runtime_decimal" -ge 81 ]; then
+    if [ "$runtime_decimal" -ge 81 ] 2>/dev/null; then
         # Runtime 8.1+: Remove old XML permission files
         find . -name "extensionsPermissionSet.xml" -delete 2>/dev/null || true
         echo "🗑️  Removed extensionsPermissionSet.xml files"
@@ -96,10 +110,10 @@ compile_al_extension() {
     
     # Find AL compiler
     AL_COMPILER=""
-    if command -v alc &> /dev/null; then
-        AL_COMPILER="alc"
-    elif [ -f "$HOME/.dotnet/tools/alc" ]; then
-        AL_COMPILER="$HOME/.dotnet/tools/alc"
+    if command -v AL &> /dev/null; then
+        AL_COMPILER="AL"
+    elif [ -f "$HOME/.dotnet/tools/AL" ]; then
+        AL_COMPILER="$HOME/.dotnet/tools/AL"
     else
         echo "❌ AL compiler not found"
         exit 1

@@ -103,22 +103,9 @@ echo "app-runtime=$APP_RUNTIME" >> $GITHUB_OUTPUT
 echo "app-target=$APP_TARGET" >> $GITHUB_OUTPUT
 echo "is-appsource-app=$IS_APPSOURCE_APP" >> $GITHUB_OUTPUT
 
-# Create structured outputs for complex data
-APP_INFO=$(jq -n \
-    --arg name "$APP_NAME" \
-    --arg cleanName "$CLEAN_APP_NAME" \
-    --arg version "$APP_VERSION" \
-    --arg platform "$APP_PLATFORM" \
-    --arg application "$APP_APPLICATION" \
-    --arg runtime "$APP_RUNTIME" \
-    --arg target "$APP_TARGET" \
-    --argjson isAppSource "$IS_APPSOURCE_APP" \
-    '{name: $name, cleanName: $cleanName, version: $version, platform: $platform, application: $application, runtime: $runtime, target: $target, isAppSource: $isAppSource}')
-
-BUILD_CONFIG=$(jq -n \
-    --arg bcVersion "$BC_VERSION" \
-    --arg versionSpecificAppJson "$VERSION_SPECIFIC_APP_JSON" \
-    '{bcVersion: $bcVersion, versionSpecificAppJson: $versionSpecificAppJson}')
+# Create simple structured outputs (avoid JSON escaping issues)
+APP_INFO="name=$APP_NAME,cleanName=$CLEAN_APP_NAME,version=$APP_VERSION,platform=$APP_PLATFORM"
+BUILD_CONFIG="bcVersion=$BC_VERSION,versionSpecificAppJson=$VERSION_SPECIFIC_APP_JSON"
 
 echo "app-info=$APP_INFO" >> $GITHUB_OUTPUT
 echo "build-config=$BUILD_CONFIG" >> $GITHUB_OUTPUT
