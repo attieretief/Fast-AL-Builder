@@ -4,7 +4,7 @@ page 50000 "Test Page"
     ApplicationArea = All;
     UsageCategory = Lists;
     SourceTable = "Test Table";
-    
+
     layout
     {
         area(Content)
@@ -26,7 +26,7 @@ page 50000 "Test Page"
             }
         }
     }
-    
+
     actions
     {
         area(Processing)
@@ -34,7 +34,7 @@ page 50000 "Test Page"
             action(ActionName)
             {
                 ApplicationArea = All;
-                
+
                 trigger OnAction()
                 begin
                     Message('Test action executed');

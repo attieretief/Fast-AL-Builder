@@ -108,12 +108,18 @@ cleanup_permission_files() {
 compile_al_extension() {
     echo "⚙️  Starting AL compilation..."
     
+    # Ensure DOTNET_ROOT is set for AL compiler to work
+    if [ -z "$DOTNET_ROOT" ]; then
+        export DOTNET_ROOT="$HOME/.dotnet"
+        echo "Setting DOTNET_ROOT=$DOTNET_ROOT"
+    fi
+    
     # Find AL compiler
     AL_COMPILER=""
-    if command -v AL &> /dev/null; then
-        AL_COMPILER="AL"
-    elif [ -f "$HOME/.dotnet/tools/AL" ]; then
+    if [ -f "$HOME/.dotnet/tools/AL" ]; then
         AL_COMPILER="$HOME/.dotnet/tools/AL"
+    elif command -v AL &> /dev/null && [[ "$(AL --help 2>&1 | head -1)" == *"altool"* ]]; then
+        AL_COMPILER="AL"
     else
         echo "❌ AL compiler not found"
         exit 1
@@ -132,6 +138,7 @@ compile_al_extension() {
     
     # Build compiler arguments
     local alc_args=(
+        "compile"
         "/project:$(pwd)"
         "/out:$output_file"
         "/packagecachepath:$symbols_path"
@@ -145,15 +152,13 @@ compile_al_extension() {
         alc_args+=("/ruleset:$ruleset_file")
         echo "📋 Using ruleset: $ruleset_file"
     fi
-    
+
     # Add assembly probing paths (Linux equivalent)
-    alc_args+=("/assemblyprobingpaths:/usr/lib/mono/4.5")
-    
-    echo "🚀 Running AL compiler with arguments:"
+    alc_args+=("/assemblyprobingpaths:/usr/lib/mono/4.5")    echo "🚀 Running AL compiler with arguments:"
     printf '%s\n' "${alc_args[@]}"
     
-    # Run compilation
-    if "$AL_COMPILER" "${alc_args[@]}"; then
+    # Run compilation with proper DOTNET_ROOT environment
+    if DOTNET_ROOT="$DOTNET_ROOT" "$AL_COMPILER" "${alc_args[@]}"; then
         COMPILATION_SUCCESS="true"
         echo "✅ Compilation successful!"
         

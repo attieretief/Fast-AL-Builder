@@ -1,7 +1,7 @@
 table 50000 "Test Table"
 {
     TableType = Normal;
-    
+
     fields
     {
         field(1; "Entry No."; Integer)
@@ -17,7 +17,7 @@ table 50000 "Test Table"
             DataClassification = SystemMetadata;
         }
     }
-    
+
     keys
     {
         key(PK; "Entry No.")
