@@ -52,6 +52,20 @@ artifacts/
 .env.local
 .env.*.local
 
+# Python virtual environments
+.venv/
+venv/
+env/
+
+# Secrets and sensitive files
+.secrets
+.secrets.*
+
+# GitHub Actions testing
+.actrc
+.act/
+.snapshots/
+
 # Temporary files
 *.tmp
 *.temp
