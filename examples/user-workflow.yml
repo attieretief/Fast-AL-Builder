@@ -1,0 +1,56 @@
+# Example user workflow in their repository
+# This shows how simple it is to use the multi-runner AL builder
+
+name: Build and Publish AL Extension
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+  release:
+    types: [published]
+
+jobs:
+  build-al-extension:
+    runs-on: ubuntu-latest  # The action manages other runners internally
+    
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+    
+    - name: Build, Sign, and Publish AL Extension
+      id: al-builder
+      uses: attieretief/Fast-AL-Builder@v1  # Your marketplace action
+      with:
+        build-mode: ${{ github.event_name == 'pull_request' && 'test' || 'build' }}
+        skip-signing: ${{ github.event_name == 'pull_request' }}
+        skip-publishing: ${{ github.event_name != 'release' }}
+        publish-mode: ${{ github.event_name == 'release' && 'auto-promote' || 'draft' }}
+        timeout-minutes: 45
+    
+    - name: Display Results
+      run: |
+        echo "🎉 AL Extension Pipeline Completed!"
+        echo "📦 App File: ${{ steps.al-builder.outputs.app-file }}"
+        echo "🏷️ Version: ${{ steps.al-builder.outputs.app-version }}"
+        echo "✅ Overall Success: ${{ steps.al-builder.outputs.overall-success }}"
+        
+        if [ "${{ steps.al-builder.outputs.overall-success }}" = "true" ]; then
+          echo "🎯 All steps completed successfully!"
+        else
+          echo "❌ Some steps failed - check the AL Builder workflow for details"
+          exit 1
+        fi
+
+    # Optional: Additional steps that depend on the AL build
+    - name: Create GitHub Release Asset
+      if: github.event_name == 'release' && steps.al-builder.outputs.overall-success == 'true'
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ github.event.release.upload_url }}
+        asset_path: ${{ steps.al-builder.outputs.app-file }}
+        asset_name: ${{ steps.al-builder.outputs.app-file }}
+        asset_content_type: application/octet-stream

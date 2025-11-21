@@ -1,0 +1,252 @@
+# Internal workflow that handles multi-runner AL extension pipeline
+# This workflow is triggered by the main composite action
+
+name: AL Extension Multi-Runner Pipeline
+
+on:
+  workflow_dispatch:
+    inputs:
+      workflow-id:
+        description: 'Unique workflow identifier'
+        required: true
+      build-mode:
+        description: 'Build mode: test or build'
+        required: false
+        default: 'build'
+      skip-signing:
+        description: 'Skip code signing'
+        required: false
+        default: 'false'
+      skip-publishing:
+        description: 'Skip AppSource publishing'
+        required: false
+        default: 'false'
+      publish-mode:
+        description: 'Publishing mode'
+        required: false
+        default: 'draft'
+      source-repo:
+        description: 'Source repository'
+        required: true
+      source-sha:
+        description: 'Source commit SHA'
+        required: true
+      source-ref:
+        description: 'Source ref'
+        required: true
+
+jobs:
+  # Job 1: Build on Ubuntu (fast and cheap)
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      app-file: ${{ steps.build.outputs.app-file }}
+      app-version: ${{ steps.build.outputs.app-version }}
+      build-success: ${{ steps.build.outputs.success }}
+    
+    steps:
+    - name: Checkout Source Repository
+      uses: actions/checkout@v4
+      with:
+        repository: ${{ inputs.source-repo }}
+        ref: ${{ inputs.source-sha }}
+        
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Install Dependencies
+      run: |
+        pip install -r scripts/requirements.txt
+    
+    - name: Download AL Symbols
+      if: ${{ !contains(github.event.inputs.skip-symbols, 'true') }}
+      env:
+        LINC_TOKEN: ${{ secrets.LINC_TOKEN }}
+      run: |
+        python scripts/download_symbols.py
+    
+    - name: Install AL Compiler
+      run: |
+        python scripts/install_al_compiler.py
+    
+    - name: Analyze AL Project
+      run: |
+        python scripts/analyze_project.py
+    
+    - name: Build AL Extension
+      id: build
+      run: |
+        python scripts/build_extension.py ${{ inputs.build-mode }}
+        
+        # Capture outputs
+        APP_FILE=$(ls *.app | head -1)
+        echo "app-file=$APP_FILE" >> $GITHUB_OUTPUT
+        
+        # Get version from app.json
+        VERSION=$(python -c "import json; print(json.load(open('app.json'))['version'])")
+        echo "app-version=$VERSION" >> $GITHUB_OUTPUT
+        echo "success=true" >> $GITHUB_OUTPUT
+    
+    - name: Upload Unsigned App
+      uses: actions/upload-artifact@v4
+      with:
+        name: unsigned-app-${{ inputs.workflow-id }}
+        path: "*.app"
+        retention-days: 1
+
+  # Job 2: Sign on Windows (required for AL extensions)  
+  sign:
+    needs: build
+    runs-on: windows-latest
+    if: ${{ needs.build.outputs.build-success == 'true' && !contains(github.event.inputs.skip-signing, 'true') }}
+    outputs:
+      signing-success: ${{ steps.sign.outputs.success }}
+    
+    steps:
+    - name: Checkout Source Repository
+      uses: actions/checkout@v4
+      with:
+        repository: ${{ inputs.source-repo }}
+        ref: ${{ inputs.source-sha }}
+    
+    - name: Download Unsigned App
+      uses: actions/download-artifact@v4
+      with:
+        name: unsigned-app-${{ inputs.workflow-id }}
+    
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Install Azure Dependencies
+      run: |
+        pip install -r scripts/azure-requirements.txt
+    
+    - name: Sign AL Extension
+      id: sign
+      env:
+        AZURE_KEYVAULT_URL: ${{ secrets.AZURE_KEYVAULT_URL }}
+        AZURE_KEYVAULT_CERT_NAME: ${{ secrets.AZURE_KEYVAULT_CERT_NAME }}
+        AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+        AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+        AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      run: |
+        $appFile = Get-ChildItem -Name "*.app" | Select-Object -First 1
+        python scripts/code_sign.py $appFile --use-keyvault
+        echo "success=true" >> $env:GITHUB_OUTPUT
+    
+    - name: Upload Signed App
+      uses: actions/upload-artifact@v4
+      with:
+        name: signed-app-${{ inputs.workflow-id }}
+        path: "*.app"
+        retention-days: 1
+
+  # Job 3: Publish on Ubuntu (can be Linux again)
+  publish:
+    needs: [build, sign]
+    runs-on: ubuntu-latest
+    if: ${{ always() && needs.build.outputs.build-success == 'true' && !contains(github.event.inputs.skip-publishing, 'true') }}
+    outputs:
+      publishing-success: ${{ steps.publish.outputs.success }}
+    
+    steps:
+    - name: Checkout Source Repository
+      uses: actions/checkout@v4
+      with:
+        repository: ${{ inputs.source-repo }}
+        ref: ${{ inputs.source-sha }}
+    
+    - name: Download App (Signed or Unsigned)
+      uses: actions/download-artifact@v4
+      with:
+        name: ${{ needs.sign.outputs.signing-success == 'true' && 'signed-app' || 'unsigned-app' }}-${{ inputs.workflow-id }}
+    
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Install Dependencies
+      run: |
+        pip install -r scripts/requirements.txt
+    
+    - name: Publish to AppSource
+      id: publish
+      env:
+        AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+        AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+        AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+        PUBLISH_MODE: ${{ inputs.publish-mode }}
+      run: |
+        APP_FILE=$(ls *.app | head -1)
+        python scripts/publish_appsource.py "$APP_FILE" --mode "$PUBLISH_MODE"
+        echo "success=true" >> $GITHUB_OUTPUT
+
+  # Job 4: Report Results
+  report:
+    needs: [build, sign, publish]
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+    - name: Create Results Summary
+      run: |
+        echo "# AL Extension Pipeline Results" >> $GITHUB_STEP_SUMMARY
+        echo "Workflow ID: ${{ inputs.workflow-id }}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        echo "## Build Status" >> $GITHUB_STEP_SUMMARY
+        if [ "${{ needs.build.outputs.build-success }}" = "true" ]; then
+          echo "✅ Build successful" >> $GITHUB_STEP_SUMMARY
+          echo "- App File: ${{ needs.build.outputs.app-file }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Version: ${{ needs.build.outputs.app-version }}" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ Build failed" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "## Code Signing Status" >> $GITHUB_STEP_SUMMARY
+        if [ "${{ contains(github.event.inputs.skip-signing, 'true') }}" = "true" ]; then
+          echo "⏭️ Signing skipped" >> $GITHUB_STEP_SUMMARY
+        elif [ "${{ needs.sign.outputs.signing-success }}" = "true" ]; then
+          echo "✅ Code signing successful" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ Code signing failed" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "## Publishing Status" >> $GITHUB_STEP_SUMMARY
+        if [ "${{ contains(github.event.inputs.skip-publishing, 'true') }}" = "true" ]; then
+          echo "⏭️ Publishing skipped" >> $GITHUB_STEP_SUMMARY
+        elif [ "${{ needs.publish.outputs.publishing-success }}" = "true" ]; then
+          echo "✅ AppSource publishing successful" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ AppSource publishing failed" >> $GITHUB_STEP_SUMMARY
+        fi
+    
+    - name: Store Results
+      run: |
+        # Store results in a format the calling workflow can retrieve
+        mkdir -p pipeline-results
+        cat > pipeline-results/summary.json << EOF
+        {
+          "workflow_id": "${{ inputs.workflow-id }}",
+          "app_file": "${{ needs.build.outputs.app-file }}",
+          "app_version": "${{ needs.build.outputs.app-version }}",
+          "build_success": "${{ needs.build.outputs.build-success }}",
+          "signing_success": "${{ needs.sign.outputs.signing-success }}",
+          "publishing_success": "${{ needs.publish.outputs.publishing-success }}",
+          "overall_success": "${{ needs.build.outputs.build-success == 'true' && (contains(github.event.inputs.skip-signing, 'true') || needs.sign.outputs.signing-success == 'true') && (contains(github.event.inputs.skip-publishing, 'true') || needs.publish.outputs.publishing-success == 'true') }}"
+        }
+        EOF
+    
+    - name: Upload Results
+      uses: actions/upload-artifact@v4
+      with:
+        name: pipeline-results-${{ inputs.workflow-id }}
+        path: pipeline-results/
+        retention-days: 1

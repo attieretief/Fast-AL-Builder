@@ -11,9 +11,22 @@
   "url": "",
   "logo": "",
   "dependencies": [
+    {
+      "id": "3e3bc6ec-214d-4029-9060-8a3a1a32ed63",
+      "name": "Linc Extension Access",
+      "publisher": "Linc Communications (Pty) Ltd",
+      "version": "0.0.0.0"
+    },
+    {
+      "id": "04ec1503-1b09-486f-ac8b-c341bbd51230",
+      "name": "Linc Third Party Transactions",
+      "publisher": "Linc Communications (Pty) Ltd",
+      "version": "0.0.0.0"
+    }
   ],
   "screenshots": [],
   "platform": "26.0.0.0",
+  "application": "26.0.0.0",
   "idRanges": [
     {
       "from": 50000,

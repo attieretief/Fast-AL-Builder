@@ -1,0 +1,58 @@
+# AL Extension Builder - Python Requirements
+# Core Python dependencies for the AL extension build system
+
+# HTTP requests (for downloads, API calls)
+requests>=2.31.0
+
+# JSON handling (built-in json module is sufficient for most cases)
+# But we might want more advanced JSON handling
+jsonschema>=4.0.0
+
+# Process management and system operations
+# (subprocess and os are built-in, but we might want psutil for advanced process handling)
+psutil>=5.9.0
+
+# File operations and path handling
+# (pathlib is built-in, but we might want additional utilities)
+pathvalidate>=3.0.0
+
+# Cryptography for certificate handling
+cryptography>=3.4.8
+
+# XML processing (for app.json extensions and configuration files)
+lxml>=4.9.0
+
+# Date and time utilities
+python-dateutil>=2.8.0
+
+# CLI argument parsing (argparse is built-in, but click provides more features)
+click>=8.0.0
+
+# Progress bars and CLI utilities
+tqdm>=4.64.0
+
+# Configuration file handling
+pyyaml>=6.0
+
+# Logging enhancements
+colorlog>=6.7.0
+
+# Environment variable management
+python-dotenv>=1.0.0
+
+# HTTP client for more advanced scenarios
+httpx>=0.24.0
+
+# ZIP file handling enhancements
+py7zr>=0.20.0
+
+# Development and testing dependencies (optional)
+pytest>=7.0.0
+pytest-cov>=4.0.0
+black>=22.0.0
+flake8>=5.0.0
+mypy>=1.0.0
+
+# Windows-specific dependencies (only on Windows)
+pywin32>=305; sys_platform == "win32"
+wmi>=1.5.1; sys_platform == "win32"
