@@ -1,17 +1,39 @@
 # Fast AL Builder
 
-A GitHub Action for building, signing, and publishing Microsoft Dynamics 365 Business Central AL extensions with intelligent symbol management and AppSource support.
+[![GitHub](https://img.shields.io/badge/GitHub-Fast--AL--Builder-blue?logo=github)](https://github.com/attieretief/Fast-AL-Builder)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![AL Development](https://img.shields.io/badge/AL-Business%20Central-green)](https://docs.microsoft.com/en-us/dynamics365/business-central/dev-itpro/developer/devenv-programming-in-al)
+
+A comprehensive, production-ready GitHub Action for building, signing, and publishing Microsoft Dynamics 365 Business Central AL extensions with multi-runner optimization and intelligent symbol management.
 
 ## Features
 
+### 🎯 **Single-Step Simplicity**
+- **One action call** handles the entire AL extension pipeline
+- **Automatic runner management** - Ubuntu for speed, Windows when required
+- **Zero configuration** for standard AL projects
+
+### 🏗️ **Complete AL Pipeline**
 - 🚀 **Fast AL compilation** with automated symbol management
-- 🔍 **Smart dependency resolution** from NuGet and custom registries
+- 🔍 **Smart dependency resolution** from AppSource, Microsoft, and LINC registries
 - 🏗️ **Intelligent version generation** based on git events and branches
-- ✍️ **Azure Key Vault code signing** integration
+- ✍️ **Azure Key Vault code signing** integration for Windows
 - 🏪 **AppSource publishing** with automatic product detection
 - 🧪 **PR check mode** for fast compilation validation
 - 📦 **Multi-version support** for different BC versions
 - 🔧 **Configurable build targeting** (OnPrem/Cloud)
+
+### ⚡ **Performance Optimized**
+- **Multi-runner architecture** - Ubuntu for building, Windows only for signing
+- **Parallel processing** - Optimized for GitHub Actions cost and speed
+- **Smart caching** - Symbol and dependency management
+- **Lean execution** - Minimal resource usage
+
+### 🔒 **Enterprise Ready**
+- **Cross-platform compatibility** with proper platform detection
+- **Production workflows** with comprehensive error handling
+- **Local testing support** with mock SignTool for development
+- **Comprehensive logging** and debugging capabilities
 
 ## Quick Start
 
@@ -176,6 +198,52 @@ See the [`examples/`](./examples/) directory for complete workflow examples:
 - [`build-workflow.yml`](./examples/build-workflow.yml) - Advanced pipeline with signing
 - [`multi-version-workflow.yml`](./examples/multi-version-workflow.yml) - Multi-version matrix build
 
+## 📚 Documentation
+
+- **[Multi-Runner Architecture](MULTI_RUNNER_ARCHITECTURE.md)** - Technical deep dive into the multi-runner system
+- **[Code Signing Analysis](CODE_SIGNING_ANALYSIS.md)** - Platform requirements and Windows signing explained  
+- **[User Guide](README_MULTI_RUNNER.md)** - Complete usage documentation with examples
+- **[Alternative Testing](ALTERNATIVE_TESTING_APPROACHES.md)** - Docker and VM testing approaches
+
+## 🧪 Local Development & Testing
+
+### Cross-Platform Testing
+```bash
+# Test code signing logic on macOS/Linux using mock SignTool
+python scripts/code_sign.py app.app --test-mode \
+  --cert-base64 "$(cat test-cert.txt)" \
+  --cert-password "password"
+
+# Run comprehensive signing tests
+./test-windows-signing.sh
+
+# Validate multi-runner architecture
+./test-multi-runner.sh
+```
+
+### Mock SignTool for Development
+The action includes a cross-platform mock SignTool for local testing:
+```bash
+python scripts/mock_signtool.py sign /f cert.pfx /p password file.app
+```
+
+## 🏛️ Multi-Runner Architecture
+
+This action uses a sophisticated multi-runner system for optimal performance:
+
+```mermaid
+graph TD
+    A[Single Action Call] --> B[Ubuntu: Build & Analysis]
+    B --> C[Windows: Code Signing] 
+    C --> D[Ubuntu: Publishing]
+    D --> E[Results Collection]
+```
+
+**Why Multi-Runner?**
+- AL extensions require Windows SignTool (proprietary NAVX format)
+- Ubuntu runners are faster and more cost-effective for building
+- Automatic coordination handles complexity for users
+
 ## Repository Structure
 
 The AL repository should have this structure:
@@ -220,17 +288,40 @@ env:
   ACTIONS_RUNNER_DEBUG: true
 ```
 
-## Contributing
+## 🤝 Contributing
 
 Contributions are welcome! Please read our [Contributing Guidelines](./CONTRIBUTING.md) and submit pull requests for any improvements.
 
-## License
+### Development Setup
+1. Clone the repository
+2. Install dependencies: `pip install -r scripts/requirements.txt`
+3. Run tests: `./test-windows-signing.sh`
+4. Test locally with `--test-mode` for cross-platform development
+
+## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](./LICENSE) file for details.
 
-## Support
+## 🙏 Acknowledgments
+
+- Microsoft AL development team for the AL compiler and tools
+- GitHub Actions team for the robust CI/CD platform  
+- The Business Central community for continuous feedback and improvements
+
+## 🔗 Links & Support
+
+- **[GitHub Marketplace](https://github.com/marketplace/actions/fast-al-builder)** - Published action (coming soon)
+- **[Documentation](https://github.com/attieretief/Fast-AL-Builder/wiki)** - Comprehensive guides
+- **[Issues](https://github.com/attieretief/Fast-AL-Builder/issues)** - Bug reports and feature requests
+- **[Discussions](https://github.com/attieretief/Fast-AL-Builder/discussions)** - Community support
+- **[Examples](./examples/)** - Real-world workflow examples
 
 For issues and questions:
-- Create an issue in this repository
-- Check the [examples](./examples/) for common usage patterns
-- Review the [troubleshooting](#troubleshooting) section
+- 🐛 **Bug Reports**: Create an issue with detailed steps to reproduce
+- 💡 **Feature Requests**: Use GitHub issues with enhancement label
+- ❓ **Questions**: Check discussions or create a new discussion thread
+- 📖 **Documentation**: Review the comprehensive guides in this repository
+
+---
+
+**Made with ❤️ for the Business Central community**
