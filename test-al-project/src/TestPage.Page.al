@@ -1,4 +1,4 @@
-page 50000 "Test Page"
+page 71112730 "Test Page"
 {
     PageType = List;
     ApplicationArea = All;

@@ -1,4 +1,4 @@
-table 50000 "Test Table"
+table 71112730 "Test Table"
 {
     TableType = Normal;
 
