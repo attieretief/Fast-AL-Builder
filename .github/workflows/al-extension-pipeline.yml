@@ -96,7 +96,7 @@ jobs:
         path: "*.app"
         retention-days: 1
 
-  # Job 2: Sign on Windows (required for AL extensions)  
+  # Job 2: Sign on Windows (required for SignTool.exe)
   sign:
     needs: build
     runs-on: windows-latest
@@ -121,21 +121,18 @@ jobs:
       with:
         python-version: '3.11'
     
-    - name: Install Azure Dependencies
+    - name: Install Dependencies
       run: |
-        pip install -r scripts/azure-requirements.txt
+        pip install -r scripts/requirements.txt
     
     - name: Sign AL Extension
       id: sign
       env:
-        AZURE_KEYVAULT_URL: ${{ secrets.AZURE_KEYVAULT_URL }}
-        AZURE_KEYVAULT_CERT_NAME: ${{ secrets.AZURE_KEYVAULT_CERT_NAME }}
-        AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-        AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
-        AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+        SIGNING_CERT_BASE64: ${{ secrets.SIGNING_CERT_BASE64 }}
+        SIGNING_CERT_PASSWORD: ${{ secrets.SIGNING_CERT_PASSWORD }}
       run: |
-        $appFile = Get-ChildItem -Name "*.app" | Select-Object -First 1
-        python scripts/code_sign.py $appFile --use-keyvault
+        $APP_FILE = Get-ChildItem -Filter "*.app" | Select-Object -First 1 -ExpandProperty Name
+        python scripts/code_sign.py "$APP_FILE"
         echo "success=true" >> $env:GITHUB_OUTPUT
     
     - name: Upload Signed App

@@ -1,12 +1,20 @@
-name: 'AL Extension Builder (Multi-Runner)'
-description: 'Build, sign, and publish AL extensions with automatic Ubuntu/Windows runner management'
+name: 'Fast AL Builder'
+description: 'Ultra-fast Business Central AL extension builder with optimized multi-runner pipeline, code signing, and AppSource publishing'
 author: 'Attie Retief'
 
 branding:
-  icon: 'package'
-  color: 'blue'
+  icon: 'zap'
+  color: 'purple'
 
 inputs:
+  # Required Secrets (configure in repository settings)
+  # - LINC_TOKEN: LINC authentication token for symbol download
+  # - SIGNING_CERT_BASE64: Base64-encoded code signing certificate (optional)
+  # - SIGNING_CERT_PASSWORD: Password for signing certificate (optional)
+  # - AZURE_CLIENT_ID: Azure service principal client ID (for publishing)
+  # - AZURE_CLIENT_SECRET: Azure service principal secret (for publishing)
+  # - AZURE_TENANT_ID: Azure tenant ID (for publishing)
+  
   # Build Configuration
   build-mode:
     description: 'Build mode: test or build'
@@ -40,6 +48,12 @@ inputs:
     description: 'Maximum time to wait for pipeline completion (in minutes)'
     required: false
     default: '60'
+  
+  # Advanced Configuration
+  workflow-file:
+    description: 'Custom workflow file name (advanced users only)'
+    required: false
+    default: 'al-extension-pipeline.yml'
 
 outputs:
   app-file:
@@ -113,7 +127,6 @@ runs:
     
     - name: Wait for Pipeline Completion
       shell: bash
-      timeout-minutes: ${{ inputs.timeout-minutes }}
       run: |
         echo "⏳ Waiting for AL Extension Pipeline to complete..."
         echo "   Workflow ID: ${{ steps.generate-id.outputs.workflow-id }}"

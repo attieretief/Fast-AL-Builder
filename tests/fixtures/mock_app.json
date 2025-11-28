@@ -1,0 +1,32 @@
+{
+  "id": "test-fixture-id-12345678-1234-1234-1234-123456789012",
+  "name": "Test Fixture App",
+  "publisher": "Test Publisher",
+  "version": "1.0.0.0",
+  "brief": "Test fixture for unit tests",
+  "description": "A mock AL extension for testing purposes",
+  "application": "22.0.0.0",
+  "platform": "22.0.0.0",
+  "runtime": "11.0",
+  "privacyStatement": "https://example.com/privacy",
+  "EULA": "https://example.com/eula",
+  "help": "https://example.com/help",
+  "url": "https://example.com",
+  "logo": "./logo.png",
+  "idRanges": [
+    {
+      "from": 50000,
+      "to": 50099
+    }
+  ],
+  "dependencies": [
+    {
+      "id": "63ca2fa4-4f03-4f2b-a480-172fef340d3f",
+      "name": "System Application",
+      "publisher": "Microsoft",
+      "version": "22.0.0.0"
+    }
+  ],
+  "screenshots": [],
+  "target": "OnPrem"
+}

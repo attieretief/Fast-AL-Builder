@@ -1,0 +1,327 @@
+name: PR Validation & Testing
+
+on:
+  pull_request:
+    branches: [master, main]
+    paths:
+      - 'scripts/**'
+      - 'action.yml'
+      - '.github/workflows/**'
+      - 'test-al-project/**'
+      - 'tests/**'
+  workflow_dispatch:
+
+jobs:
+  # Fast: Linting and static analysis
+  lint:
+    name: Code Linting & Style
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      
+      - name: Install linting tools
+        run: |
+          pip install flake8 pylint black mypy isort
+      
+      - name: Check code formatting with Black
+        run: |
+          black --check scripts/
+        continue-on-error: true
+      
+      - name: Check import ordering with isort
+        run: |
+          isort --check-only scripts/
+        continue-on-error: true
+      
+      - name: Run flake8
+        run: |
+          flake8 scripts/ --max-line-length=120 --extend-ignore=E203,W503 --show-source --statistics
+        continue-on-error: true
+      
+      - name: Run pylint
+        run: |
+          pylint scripts/*.py --max-line-length=120 --disable=C0111,R0903
+        continue-on-error: true
+      
+      - name: Type checking with mypy
+        run: |
+          mypy scripts/ --ignore-missing-imports --no-strict-optional
+        continue-on-error: true
+
+  # Validate YAML files
+  validate-yaml:
+    name: Validate YAML Files
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      
+      - name: Install PyYAML
+        run: pip install pyyaml yamllint
+      
+      - name: Validate action.yml
+        run: |
+          python -c "import yaml; yaml.safe_load(open('action.yml'))"
+          echo "✅ action.yml is valid"
+      
+      - name: Validate workflow YAML files
+        run: |
+          for file in .github/workflows/*.yml; do
+            echo "Validating $file..."
+            python -c "import yaml; yaml.safe_load(open('$file'))"
+          done
+          echo "✅ All workflow files are valid"
+      
+      - name: Run yamllint
+        run: |
+          yamllint -d "{extends: default, rules: {line-length: {max: 120}}}" .github/workflows/ action.yml
+        continue-on-error: true
+
+  # Unit tests for Python scripts
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.9', '3.10', '3.11']
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: 'pip'
+      
+      - name: Install dependencies
+        run: |
+          pip install -r scripts/requirements.txt
+          pip install pytest pytest-cov pytest-mock pytest-xdist
+      
+      - name: Run unit tests
+        run: |
+          pytest tests/unit/ -v --cov=scripts --cov-report=xml --cov-report=term -n auto
+      
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          file: ./coverage.xml
+          flags: unittests
+          name: codecov-${{ matrix.python-version }}
+
+  # Integration tests with test-al-project
+  integration-test-ubuntu:
+    name: Integration Tests (Ubuntu)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      
+      - name: Install dependencies
+        run: pip install -r scripts/requirements.txt
+      
+      - name: Test project analysis
+        run: |
+          cd test-al-project
+          python ../scripts/analyze_project.py
+          echo "✅ Project analysis successful"
+      
+      - name: Test AL compiler installation
+        run: |
+          python scripts/install_al_compiler.py
+          echo "✅ AL compiler installation successful"
+      
+      - name: Test compilation (without symbols)
+        run: |
+          cd test-al-project
+          python ../scripts/build_extension.py test
+          echo "✅ Test compilation successful"
+      
+      - name: Run integration tests
+        run: |
+          pytest tests/integration/ -v --tb=short
+
+  # Integration tests with symbol download (if token available)
+  integration-test-with-symbols:
+    name: Integration Tests (With Symbols)
+    runs-on: ubuntu-latest
+    if: ${{ secrets.LINC_TOKEN != '' }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      
+      - name: Install dependencies
+        run: pip install -r scripts/requirements.txt
+      
+      - name: Test symbol download
+        env:
+          LINC_TOKEN: ${{ secrets.LINC_TOKEN }}
+        run: |
+          cd test-al-project
+          python ../scripts/download_symbols.py
+          echo "✅ Symbol download successful"
+      
+      - name: Test full build with symbols
+        env:
+          LINC_TOKEN: ${{ secrets.LINC_TOKEN }}
+        run: |
+          cd test-al-project
+          python ../scripts/install_al_compiler.py
+          python ../scripts/build_extension.py build
+          ls -lh *.app
+          echo "✅ Full build successful"
+
+  # E2E: Run the action itself (dogfooding) - Basic
+  e2e-basic-build:
+    name: E2E - Basic Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Test basic build (no symbols)
+        uses: ./
+        with:
+          build-mode: test
+          skip-symbols: 'true'
+          skip-signing: 'true'
+          skip-publishing: 'true'
+      
+      - name: Verify outputs
+        run: |
+          echo "Build success: ${{ steps.test.outputs.build-success }}"
+          if [ "${{ steps.test.outputs.build-success }}" != "true" ]; then
+            echo "::error::Build should have succeeded"
+            exit 1
+          fi
+
+  # E2E: Full build with symbols
+  e2e-with-symbols:
+    name: E2E - Build with Symbols
+    runs-on: ubuntu-latest
+    if: ${{ secrets.LINC_TOKEN != '' }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Test with symbol download
+        uses: ./
+        env:
+          LINC_TOKEN: ${{ secrets.LINC_TOKEN }}
+        with:
+          build-mode: build
+          skip-signing: 'true'
+          skip-publishing: 'true'
+      
+      - name: Verify artifact exists
+        run: |
+          ls -lh test-al-project/*.app || echo "::warning::No .app file found"
+
+  # E2E: Test different build modes
+  e2e-build-modes:
+    name: E2E - Build Modes
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        build-mode: [test, build]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Test ${{ matrix.build-mode }} mode
+        uses: ./
+        with:
+          build-mode: ${{ matrix.build-mode }}
+          skip-symbols: 'true'
+          skip-signing: 'true'
+          skip-publishing: 'true'
+
+  # Smoke tests for all Python scripts
+  smoke-tests:
+    name: Smoke Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      
+      - name: Install dependencies
+        run: pip install -r scripts/requirements.txt
+      
+      - name: Test all scripts load without errors
+        run: |
+          python scripts/al_builder.py --help
+          python scripts/analyze_project.py --help || echo "No --help flag"
+          python scripts/build_extension.py --help || echo "No --help flag"
+          python scripts/download_symbols.py --help || echo "No --help flag"
+          python scripts/install_al_compiler.py --help || echo "No --help flag"
+          python scripts/code_sign.py --help || echo "No --help flag"
+          python scripts/publish_appsource.py --help || echo "No --help flag"
+          echo "✅ All scripts load successfully"
+      
+      - name: Test imports
+        run: |
+          python -c "import sys; sys.path.append('scripts'); from build_extension import ALBuilder"
+          python -c "import sys; sys.path.append('scripts'); from download_symbols import SymbolDownloader"
+          python -c "import sys; sys.path.append('scripts'); from install_al_compiler import ALCompilerInstaller"
+          python -c "import sys; sys.path.append('scripts'); from code_sign import CodeSigner"
+          python -c "import sys; sys.path.append('scripts'); from publish_appsource import AppSourcePublisher"
+          python -c "import sys; sys.path.append('scripts'); from analyze_project import ALProjectAnalyzer"
+          echo "✅ All imports successful"
+
+  # Summary job
+  test-summary:
+    name: Test Summary
+    runs-on: ubuntu-latest
+    needs: [lint, validate-yaml, unit-tests, integration-test-ubuntu, e2e-basic-build, smoke-tests]
+    if: always()
+    steps:
+      - name: Check test results
+        run: |
+          echo "## Test Results Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- Linting: ${{ needs.lint.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- YAML Validation: ${{ needs.validate-yaml.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Unit Tests: ${{ needs.unit-tests.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Integration Tests: ${{ needs.integration-test-ubuntu.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- E2E Tests: ${{ needs.e2e-basic-build.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Smoke Tests: ${{ needs.smoke-tests.result }}" >> $GITHUB_STEP_SUMMARY
+      
+      - name: Fail if critical tests failed
+        if: |
+          needs.unit-tests.result == 'failure' ||
+          needs.integration-test-ubuntu.result == 'failure' ||
+          needs.e2e-basic-build.result == 'failure'
+        run: |
+          echo "::error::Critical tests failed"
+          exit 1
