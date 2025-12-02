@@ -102,15 +102,29 @@ class ALBuildOrchestrator:
         
         return success, app_file_path
     
-    def sign_extension(self, app_file_path: str, cert_base64: str = None, 
-                      cert_password: str = None) -> bool:
-        """Sign the AL extension"""
-        if not cert_base64 or not cert_password:
-            self.log("ℹ️ No signing certificate provided, skipping code signing", "cyan")
+    def sign_extension(self, app_file_path: str) -> bool:
+        """Sign the AL extension using AzureSignTool."""
+        vault_url = os.environ.get('AZ_KEY_VAULT_URI')
+        cert_name = os.environ.get('AZ_KEY_VAULT_CERTIFICATE_NAME')
+        client_id = os.environ.get('AZ_KEY_VAULT_APPLICATION_ID')
+        client_secret = os.environ.get('AZ_KEY_VAULT_APPLICATION_SECRET')
+        tenant_id = os.environ.get('AZ_KEY_VAULT_TENANT_ID')
+        timestamp_url = os.environ.get('AZ_SIGN_TIMESTAMP_URL', 'http://timestamp.digicert.com')
+
+        if not all([vault_url, cert_name, client_id, client_secret, tenant_id]):
+            self.log("ℹ️ Azure Key Vault signing variables not set, skipping code signing", "cyan")
             return True
-        
+
         signer = CodeSigner()
-        return signer.sign_app_file(app_file_path, cert_base64, cert_password)
+        return signer.sign_app_file(
+            app_file_path=app_file_path,
+            vault_url=vault_url,
+            cert_name=cert_name,
+            client_id=client_id,
+            client_secret=client_secret,
+            tenant_id=tenant_id,
+            timestamp_url=timestamp_url
+        )
     
     def publish_to_appsource(self, app_info: dict, app_file_path: str,
                            tenant_id: str = None, client_id: str = None, 
@@ -187,11 +201,7 @@ class ALBuildOrchestrator:
             # 5. Sign extension
             if include_signing and app_file_path:
                 self.log("\n🖊️ Step 4: Signing extension...", "cyan")
-                signing_success = self.sign_extension(
-                    app_file_path=app_file_path,
-                    cert_base64=os.environ.get('SIGNING_CERT_BASE64'),
-                    cert_password=os.environ.get('SIGNING_CERT_PASSWORD')
-                )
+                signing_success = self.sign_extension(app_file_path=app_file_path)
                 
                 if not signing_success:
                     self.log("⚠️ Signing failed, but continuing...", "yellow")

@@ -1,98 +1,101 @@
-"""
-Unit tests for code_sign.py
-"""
+"""Unit tests for the AzureSignTool-based signer."""
 
-import pytest
+from __future__ import annotations
+
 import sys
 from pathlib import Path
-from unittest.mock import Mock, patch
 
-sys.path.insert(0, str(Path(__file__).parent.parent.parent / 'scripts'))
+import pytest
 
+sys.path.insert(0, str(Path(__file__).parent.parent.parent / "scripts"))
+
+import code_sign
 from code_sign import CodeSigner
 
 
-class TestCodeSigner:
-    """Test suite for CodeSigner"""
-    
-    @pytest.fixture
-    def signer(self, tmp_path):
-        """Create code signer instance"""
-        return CodeSigner(str(tmp_path))
-    
-    def test_init(self, tmp_path):
-        """Test initialization"""
-        signer = CodeSigner(str(tmp_path))
-        assert signer.working_directory == tmp_path
-    
-    def test_log(self, signer, capsys):
-        """Test logging"""
-        signer.log("Test message")
-        captured = capsys.readouterr()
-        assert "Test message" in captured.out
-    
-    @patch('os.environ.get')
-    def test_get_certificate_from_env(self, mock_get, signer):
-        """Test certificate retrieval from environment"""
-        mock_get.return_value = "base64encodedcert"
-        # Test certificate extraction
-        pass
-    
-    def test_decode_certificate(self, signer):
-        """Test base64 certificate decoding"""
-        import base64
-        test_cert = b"test certificate data"
-        encoded = base64.b64encode(test_cert).decode()
-        
-        # Test decoding logic
-        pass
-    
-    @patch('subprocess.run')
-    def test_sign_app_file_success(self, mock_run, signer, tmp_path):
-        """Test successful app file signing"""
-        # Create dummy .app file
-        app_file = tmp_path / "test.app"
-        app_file.write_bytes(b"test app content")
-        
-        mock_run.return_value = Mock(returncode=0)
-        # Test signing logic
-        pass
-    
-    def test_sign_app_file_not_found(self, signer, tmp_path):
-        """Test signing when app file doesn't exist"""
-        # Should handle missing file gracefully
-        pass
-    
-    @patch('os.environ.get')
-    def test_missing_certificate(self, mock_get, signer):
-        """Test when certificate is not provided"""
-        mock_get.return_value = None
-        # Should skip signing or warn
-        pass
-    
-    @patch('os.environ.get')
-    def test_missing_password(self, mock_get, signer):
-        """Test when certificate password is not provided"""
-        # Should handle gracefully
-        pass
+def _create_app(tmp_path) -> Path:
+    app_file = tmp_path / "test.app"
+    app_file.write_bytes(b"NAVX")
+    return app_file
 
 
-class TestCodeSignerWindows:
-    """Test Windows-specific signing functionality"""
-    
-    @pytest.fixture
-    def signer(self, tmp_path):
-        """Create signer instance"""
-        return CodeSigner(str(tmp_path))
-    
-    @patch('platform.system')
-    def test_windows_signtool_detection(self, mock_system, signer):
-        """Test SignTool.exe detection on Windows"""
-        mock_system.return_value = "Windows"
-        # Test SignTool detection
-        pass
-    
-    def test_non_windows_platform(self, signer):
-        """Test behavior on non-Windows platforms"""
-        # Should skip or warn
-        pass
+def test_find_azuresigntool_uses_path(monkeypatch):
+    monkeypatch.setattr(code_sign.shutil, "which", lambda _: r"C:\\AzureSignTool.exe")
+    signer = CodeSigner()
+    assert signer.azuresigntool_path == r"C:\\AzureSignTool.exe"
+
+
+def test_sign_app_file_success(monkeypatch, tmp_path):
+    app_file = _create_app(tmp_path)
+    signer = CodeSigner(azuresigntool_path=r"C:\\AzureSignTool.exe")
+
+    captured = {}
+
+    class Result:
+        returncode = 0
+        stdout = "Signed"
+        stderr = ""
+
+    def fake_run(cmd, capture_output, text):
+        captured["cmd"] = cmd
+        return Result()
+
+    monkeypatch.setattr(code_sign.subprocess, "run", fake_run)
+
+    success = signer.sign_app_file(
+        app_file_path=str(app_file),
+        vault_url="https://vault.vault",
+        cert_name="my-cert",
+        client_id="client",
+        client_secret="secret",
+        tenant_id="tenant",
+        timestamp_url="http://timestamp.example.com"
+    )
+
+    assert success is True
+    assert captured["cmd"][0] == r"C:\\AzureSignTool.exe"
+    assert "my-cert" in captured["cmd"]
+
+
+def test_sign_app_file_missing_tool(tmp_path):
+    app_file = _create_app(tmp_path)
+    signer = CodeSigner(azuresigntool_path=None)
+
+    success = signer.sign_app_file(
+        app_file_path=str(app_file),
+        vault_url="https://vault",
+        cert_name="cert",
+        client_id="client",
+        client_secret="secret",
+        tenant_id="tenant"
+    )
+
+    assert success is False
+
+
+def test_sign_app_file_missing_parameters(tmp_path):
+    app_file = _create_app(tmp_path)
+    signer = CodeSigner(azuresigntool_path=r"C:\\AzureSignTool.exe")
+
+    assert signer.sign_app_file(
+        app_file_path=str(app_file),
+        vault_url="https://vault",
+        cert_name="",
+        client_id="client",
+        client_secret="secret",
+        tenant_id="tenant"
+    ) is False
+
+
+def test_sign_app_file_missing_file(tmp_path):
+    signer = CodeSigner(azuresigntool_path=r"C:\\AzureSignTool.exe")
+    missing = tmp_path / "missing.app"
+
+    assert signer.sign_app_file(
+        app_file_path=str(missing),
+        vault_url="https://vault",
+        cert_name="cert",
+        client_id="client",
+        client_secret="secret",
+        tenant_id="tenant"
+    ) is False

@@ -9,8 +9,12 @@ branding:
 inputs:
   # Required Secrets (configure in repository settings)
   # - LINC_TOKEN: LINC authentication token for symbol download
-  # - SIGNING_CERT_BASE64: Base64-encoded code signing certificate (optional)
-  # - SIGNING_CERT_PASSWORD: Password for signing certificate (optional)
+  # - AZ_KEY_VAULT_URI: Azure Key Vault URI hosting the certificate (optional)
+  # - AZ_KEY_VAULT_CERTIFICATE_NAME: Certificate name inside the vault (optional)
+  # - AZ_KEY_VAULT_APPLICATION_ID: Azure AD application ID for Key Vault access (optional)
+  # - AZ_KEY_VAULT_APPLICATION_SECRET: Azure AD application secret (optional)
+  # - AZ_KEY_VAULT_TENANT_ID: Azure AD tenant ID (optional)
+  # - AZ_SIGN_TIMESTAMP_URL: Custom timestamp server URL (optional)
   # - AZURE_CLIENT_ID: Azure service principal client ID (for publishing)
   # - AZURE_CLIENT_SECRET: Azure service principal secret (for publishing)
   # - AZURE_TENANT_ID: Azure tenant ID (for publishing)

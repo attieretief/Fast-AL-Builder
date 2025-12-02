@@ -10,7 +10,7 @@
 
 - ⚡ **Multi-runner optimization** - Ubuntu for build/publish, Windows for signing
 - 🔍 **Smart symbol resolution** - AppSource, Microsoft, and LINC registries
-- ✍️ **Code signing** - Windows SignTool with .pfx certificates
+- ✍️ **Code signing** - AzureSignTool with Azure Key Vault certificates
 - 🏪 **AppSource publishing** - Automatic product detection and submission
 - 🧪 **PR validation** - Fast compilation checks without artifacts
 
@@ -54,8 +54,12 @@ jobs:
         uses: attieretief/Fast-AL-Builder@v1
         env:
           LINC_TOKEN: ${{ secrets.LINC_TOKEN }}
-          SIGNING_CERT_BASE64: ${{ secrets.SIGNING_CERT_BASE64 }}
-          SIGNING_CERT_PASSWORD: ${{ secrets.SIGNING_CERT_PASSWORD }}
+          AZ_KEY_VAULT_URI: ${{ secrets.AZ_KEY_VAULT_URI }}
+          AZ_KEY_VAULT_CERTIFICATE_NAME: ${{ secrets.AZ_KEY_VAULT_CERTIFICATE_NAME }}
+          AZ_KEY_VAULT_APPLICATION_ID: ${{ secrets.AZ_KEY_VAULT_APPLICATION_ID }}
+          AZ_KEY_VAULT_APPLICATION_SECRET: ${{ secrets.AZ_KEY_VAULT_APPLICATION_SECRET }}
+          AZ_KEY_VAULT_TENANT_ID: ${{ secrets.AZ_KEY_VAULT_TENANT_ID }}
+          AZ_SIGN_TIMESTAMP_URL: ${{ secrets.AZ_SIGN_TIMESTAMP_URL }}
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
@@ -79,8 +83,12 @@ jobs:
 - `LINC_TOKEN` - LINC authentication token
 
 **For code signing (optional):**
-- `SIGNING_CERT_BASE64` - Base64-encoded .pfx certificate
-- `SIGNING_CERT_PASSWORD` - Certificate password
+- `AZ_KEY_VAULT_URI` - Azure Key Vault URI containing the certificate
+- `AZ_KEY_VAULT_CERTIFICATE_NAME` - Certificate name inside the vault
+- `AZ_KEY_VAULT_APPLICATION_ID` - Azure AD application/client ID
+- `AZ_KEY_VAULT_APPLICATION_SECRET` - Azure AD client secret
+- `AZ_KEY_VAULT_TENANT_ID` - Azure AD tenant ID
+- `AZ_SIGN_TIMESTAMP_URL` - Optional timestamp server override
 
 **For AppSource publishing (optional):**
 - `AZURE_CLIENT_ID` - Service principal client ID
@@ -102,7 +110,7 @@ jobs:
 The action uses a multi-runner pipeline for optimal performance:
 
 1. **Build** (Ubuntu) - Fast AL compilation with symbol resolution
-2. **Sign** (Windows) - Code signing using SignTool.exe
+2. **Sign** (Windows) - Code signing using AzureSignTool + Azure Key Vault certs
 3. **Publish** (Ubuntu) - AppSource submission
 
 This architecture minimizes Windows runner usage while maintaining compatibility with the AL extension signing format.
@@ -144,9 +152,9 @@ your-al-repo/
 - Check network connectivity to NuGet feeds
 
 **Signing fails:**
-- Ensure certificate is valid .pfx format
-- Verify base64 encoding is correct
-- Check certificate password
+- Confirm AzureSignTool is installed (workflow installs via dotnet tool)
+- Ensure the Azure AD application has `get` access to certificates + secrets in Key Vault
+- Double-check all `AZ_KEY_VAULT_*` secrets and values
 
 **Publishing fails:**
 - Confirm app has AppSource ID ranges (100000+)
